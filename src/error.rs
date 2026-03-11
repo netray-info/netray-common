@@ -48,11 +48,13 @@ pub trait ApiError: std::fmt::Display {
 ///
 /// For rate-limited responses (when `retry_after_secs()` returns `Some`),
 /// includes the `Retry-After` header per RFC 6585.
-pub fn into_error_response(err: &(impl ApiError + std::fmt::Display)) -> Response {
+pub fn into_error_response(err: &impl ApiError) -> Response {
     let status = err.status_code();
 
-    if status == StatusCode::INTERNAL_SERVER_ERROR {
+    if status.is_server_error() {
         tracing::error!(error = %err, "internal server error");
+    } else if status.is_client_error() {
+        tracing::warn!(error = %err, "client error");
     }
 
     let body = ErrorResponse {
@@ -180,5 +182,20 @@ mod tests {
     async fn non_rate_limited_has_no_retry_after() {
         let (_, headers, _) = into_parts(TestError::BadInput("x".into())).await;
         assert!(headers.get(axum::http::header::RETRY_AFTER).is_none());
+    }
+
+    #[tokio::test]
+    async fn error_response_has_json_content_type() {
+        let response = into_error_response(&TestError::BadInput("test".into()));
+        let ct = response
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .expect("Content-Type header must be present")
+            .to_str()
+            .unwrap();
+        assert!(
+            ct.contains("application/json"),
+            "expected application/json, got {ct}"
+        );
     }
 }

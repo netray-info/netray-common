@@ -48,6 +48,7 @@ impl IpExtractor {
     }
 
     /// Returns true if no trusted proxies are configured.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.trusted_proxies.is_empty()
     }
@@ -386,6 +387,31 @@ mod tests {
         assert_eq!(
             ext.extract(&headers, peer("10.99.99.99:443")),
             "5.6.7.8".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn is_empty_true_when_no_proxies() {
+        let ext = extractor(&[]);
+        assert!(ext.is_empty());
+    }
+
+    #[test]
+    fn is_empty_false_when_proxies_configured() {
+        let ext = extractor(&["10.0.0.1"]);
+        assert!(!ext.is_empty());
+    }
+
+    #[test]
+    fn untrusted_peer_ignores_xff() {
+        let ext = extractor(&["10.0.0.1"]);
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", HeaderValue::from_static("5.6.7.8, 9.10.11.12"));
+        headers.insert("cf-connecting-ip", HeaderValue::from_static("5.6.7.8"));
+
+        assert_eq!(
+            ext.extract(&headers, peer("1.2.3.4:12345")),
+            "1.2.3.4".parse::<IpAddr>().unwrap()
         );
     }
 

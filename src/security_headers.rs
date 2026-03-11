@@ -1,4 +1,5 @@
 use axum::extract::Request;
+use axum::http::HeaderValue;
 use axum::middleware::Next;
 use axum::response::Response;
 
@@ -46,72 +47,87 @@ pub fn security_headers_layer(
        + Clone
        + Send
        + 'static {
+    let valid_extra: Vec<String> = config
+        .extra_script_src
+        .into_iter()
+        .filter(|src| {
+            if src.contains(';') || src.contains('\n') || src.contains('\r') || src.is_empty() {
+                tracing::warn!(value = %src, "invalid extra_script_src entry skipped");
+                false
+            } else {
+                true
+            }
+        })
+        .collect();
+
     let strict_csp =
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'".to_string();
 
-    let relaxed_csp = if config.extra_script_src.is_empty() {
+    let relaxed_csp = if valid_extra.is_empty() {
         strict_csp.clone()
     } else {
-        let extra = config.extra_script_src.join(" ");
+        let extra = valid_extra.join(" ");
         format!(
             "default-src 'self'; script-src 'self' {extra}; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
         )
     };
 
+    let strict_csp_val: HeaderValue = strict_csp.parse().expect("valid CSP header value");
+    let relaxed_csp_val: HeaderValue = relaxed_csp.parse().expect("valid CSP header value");
+    let nosniff: HeaderValue = "nosniff".parse().expect("valid header value");
+    let deny: HeaderValue = "DENY".parse().expect("valid header value");
+    let referrer: HeaderValue = "strict-origin-when-cross-origin"
+        .parse()
+        .expect("valid header value");
+    let hsts: HeaderValue = "max-age=31536000; includeSubDomains"
+        .parse()
+        .expect("valid header value");
+    let pp_val: Option<HeaderValue> = if config.include_permissions_policy {
+        Some(
+            "geolocation=(), microphone=(), camera=(), payment=()"
+                .parse()
+                .expect("valid header value"),
+        )
+    } else {
+        None
+    };
+
     let prefix = config.relaxed_csp_path_prefix;
-    let include_pp = config.include_permissions_policy;
+    let prefix_with_slash = format!("{prefix}/");
 
     move |request: Request, next: Next| {
-        let strict_csp = strict_csp.clone();
-        let relaxed_csp = relaxed_csp.clone();
+        let strict_csp_val = strict_csp_val.clone();
+        let relaxed_csp_val = relaxed_csp_val.clone();
+        let nosniff = nosniff.clone();
+        let deny = deny.clone();
+        let referrer = referrer.clone();
+        let hsts = hsts.clone();
+        let pp_val = pp_val.clone();
         let prefix = prefix.clone();
+        let prefix_with_slash = prefix_with_slash.clone();
 
         Box::pin(async move {
-            let is_relaxed_path = request.uri().path().starts_with(&prefix);
+            let path = request.uri().path();
+            let is_relaxed_path = path == prefix || path.starts_with(&prefix_with_slash);
 
             let mut response = next.run(request).await;
             let headers = response.headers_mut();
 
             let csp = if is_relaxed_path {
-                &relaxed_csp
+                relaxed_csp_val
             } else {
-                &strict_csp
+                strict_csp_val
             };
-            headers.insert(
-                axum::http::header::CONTENT_SECURITY_POLICY,
-                csp.parse().expect("valid CSP header value"),
-            );
+            headers.insert(axum::http::header::CONTENT_SECURITY_POLICY, csp);
+            headers.insert(axum::http::header::X_CONTENT_TYPE_OPTIONS, nosniff);
+            headers.insert(axum::http::header::X_FRAME_OPTIONS, deny);
+            headers.insert(axum::http::header::REFERRER_POLICY, referrer);
+            headers.insert(axum::http::header::STRICT_TRANSPORT_SECURITY, hsts);
 
-            headers.insert(
-                axum::http::header::X_CONTENT_TYPE_OPTIONS,
-                "nosniff".parse().expect("valid header value"),
-            );
-
-            headers.insert(
-                axum::http::header::X_FRAME_OPTIONS,
-                "DENY".parse().expect("valid header value"),
-            );
-
-            headers.insert(
-                axum::http::header::REFERRER_POLICY,
-                "strict-origin-when-cross-origin"
-                    .parse()
-                    .expect("valid header value"),
-            );
-
-            headers.insert(
-                axum::http::header::STRICT_TRANSPORT_SECURITY,
-                "max-age=31536000; includeSubDomains"
-                    .parse()
-                    .expect("valid header value"),
-            );
-
-            if include_pp {
+            if let Some(pp) = pp_val {
                 headers.insert(
                     axum::http::HeaderName::from_static("permissions-policy"),
-                    "geolocation=(), microphone=(), camera=(), payment=()"
-                        .parse()
-                        .expect("valid header value"),
+                    pp,
                 );
             }
 
@@ -221,6 +237,49 @@ mod tests {
             .to_str()
             .unwrap();
         assert!(csp.contains("https://cdn.jsdelivr.net"));
+    }
+
+    #[tokio::test]
+    async fn relaxed_csp_on_custom_prefix() {
+        let config = SecurityHeadersConfig {
+            extra_script_src: vec!["https://cdn.example.com".to_string()],
+            relaxed_csp_path_prefix: "/api-docs".to_string(),
+            ..Default::default()
+        };
+        let layer_fn = security_headers_layer(config);
+        let app = Router::new()
+            .route("/api-docs/test", get(ok_handler))
+            .route("/test", get(ok_handler))
+            .layer(middleware::from_fn(move |req, next| {
+                let f = layer_fn.clone();
+                async move { f(req, next).await }
+            }));
+
+        let req = HttpRequest::builder()
+            .uri("/api-docs/test")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.clone().oneshot(req).await.unwrap();
+        let csp = response
+            .headers()
+            .get("content-security-policy")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(csp.contains("https://cdn.example.com"));
+
+        let req = HttpRequest::builder()
+            .uri("/test")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(req).await.unwrap();
+        let csp = response
+            .headers()
+            .get("content-security-policy")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(!csp.contains("cdn.example.com"));
     }
 
     #[tokio::test]
