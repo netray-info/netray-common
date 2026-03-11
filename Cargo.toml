@@ -1,6 +1,6 @@
 [package]
 name = "netray-common"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 description = "Shared utilities for the netray.info service ecosystem"
@@ -10,10 +10,6 @@ keywords = ["networking", "security", "middleware", "axum"]
 categories = ["web-programming::http-server"]
 rust-version = "1.75"
 
-[features]
-default = []
-cidr = ["dep:ip_network"]
-
 [dependencies]
 # HTTP framework (for HeaderMap, StatusCode, IntoResponse)
 axum = { version = "0.8", features = ["json"] }
@@ -21,8 +17,8 @@ axum = { version = "0.8", features = ["json"] }
 # Rate limiting
 governor = "0.10"
 
-# CIDR support (optional, for ifconfig-rs)
-ip_network = { version = "0.4", optional = true }
+# CIDR support for trusted proxy matching
+ip_network = "0.4"
 
 # Metrics
 metrics = "0.24"

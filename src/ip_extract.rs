@@ -2,28 +2,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 
 use axum::http::HeaderMap;
-
-/// A trusted proxy entry that can match against an IP address.
-///
-/// With the default features, only individual IP addresses are supported.
-/// With the `cidr` feature enabled, CIDR ranges (e.g. `10.0.0.0/8`) are
-/// also accepted.
-#[derive(Debug, Clone)]
-enum TrustedProxy {
-    Exact(IpAddr),
-    #[cfg(feature = "cidr")]
-    Cidr(ip_network::IpNetwork),
-}
-
-impl TrustedProxy {
-    fn contains(&self, ip: IpAddr) -> bool {
-        match self {
-            Self::Exact(addr) => *addr == ip,
-            #[cfg(feature = "cidr")]
-            Self::Cidr(net) => net.contains(ip),
-        }
-    }
-}
+use ip_network::IpNetwork;
 
 /// Extracts the real client IP from proxy headers.
 ///
@@ -32,52 +11,34 @@ impl TrustedProxy {
 /// in priority order (CF-Connecting-IP, X-Real-IP, X-Forwarded-For) but only when
 /// the peer IP is in the configured trusted proxy list.
 ///
+/// Trusted proxies can be specified as individual IPs (auto-promoted to /32 or /128)
+/// or CIDR ranges (e.g. `10.0.0.0/8`, `fd00::/8`).
+///
 /// **Safe default**: When `trusted_proxies` is empty, all proxy headers are ignored
 /// and the peer address is returned directly. This prevents IP spoofing when no
 /// proxy is configured.
 #[derive(Debug)]
 pub struct IpExtractor {
-    trusted_proxies: Vec<TrustedProxy>,
+    trusted_proxies: Vec<IpNetwork>,
 }
 
 impl IpExtractor {
     /// Create a new extractor from a list of trusted proxy strings.
     ///
-    /// Without the `cidr` feature, returns an error if any entry contains `/`
-    /// (looks like a CIDR range). With the `cidr` feature, CIDR ranges are
-    /// accepted alongside individual IPs.
-    ///
-    /// Invalid IP strings (that are not valid CIDR when the feature is enabled)
-    /// are skipped with a warning.
+    /// Accepts individual IPs (`10.0.0.1`) and CIDR ranges (`10.0.0.0/8`).
+    /// Bare IPs are auto-promoted to /32 (IPv4) or /128 (IPv6).
+    /// Invalid entries are skipped with a warning.
     pub fn new(trusted_proxy_strs: &[String]) -> Result<Self, String> {
         let mut proxies = Vec::with_capacity(trusted_proxy_strs.len());
 
         for s in trusted_proxy_strs {
-            if s.contains('/') {
-                #[cfg(not(feature = "cidr"))]
-                {
-                    return Err(format!(
-                        "trusted_proxies entry {s:?} looks like a CIDR range \
-                         -- only individual IP addresses are supported (enable the `cidr` feature for CIDR support)"
-                    ));
-                }
-                #[cfg(feature = "cidr")]
-                {
-                    match s.parse::<ip_network::IpNetwork>() {
-                        Ok(net) => proxies.push(TrustedProxy::Cidr(net)),
-                        Err(_) => {
-                            tracing::warn!(entry = %s, "trusted_proxies CIDR entry is not valid -- skipped");
-                        }
-                    }
-                    continue;
-                }
-            }
-
-            match IpAddr::from_str(s) {
-                Ok(ip) => proxies.push(TrustedProxy::Exact(ip)),
-                Err(_) => {
-                    tracing::warn!(entry = %s, "trusted_proxies entry is not a valid IP address -- skipped");
-                }
+            // Try CIDR first, then bare IP (auto-promote to /32 or /128)
+            if let Ok(net) = s.parse::<IpNetwork>() {
+                proxies.push(net);
+            } else if let Ok(ip) = IpAddr::from_str(s) {
+                proxies.push(IpNetwork::from(ip));
+            } else {
+                tracing::warn!(entry = %s, "trusted_proxies entry is not a valid IP or CIDR range -- skipped");
             }
         }
 
@@ -116,7 +77,7 @@ impl IpExtractor {
     }
 
     fn is_trusted(&self, ip: IpAddr) -> bool {
-        self.trusted_proxies.iter().any(|p| p.contains(ip))
+        self.trusted_proxies.iter().any(|net| net.contains(ip))
     }
 
     fn extract_cf_connecting_ip(&self, headers: &HeaderMap) -> Option<IpAddr> {
@@ -383,25 +344,9 @@ mod tests {
         assert_eq!(ext.trusted_proxies.len(), 2);
     }
 
-    #[cfg(not(feature = "cidr"))]
-    #[test]
-    fn cidr_entry_returns_error_without_feature() {
-        let err =
-            IpExtractor::new(&["10.0.0.1".to_string(), "10.0.0.0/8".to_string()]).unwrap_err();
-        assert!(err.contains("CIDR"), "unexpected error: {err}");
-    }
-
-    #[cfg(not(feature = "cidr"))]
-    #[test]
-    fn ipv6_cidr_entry_returns_error_without_feature() {
-        let err = IpExtractor::new(&["2001:db8::/32".to_string()]).unwrap_err();
-        assert!(err.contains("CIDR"), "unexpected error: {err}");
-    }
-
-    #[cfg(feature = "cidr")]
     #[test]
     fn cidr_trusted_proxy_matches_subnet() {
-        let ext = IpExtractor::new(&["10.0.0.0/8".to_string()]).unwrap();
+        let ext = extractor(&["10.0.0.0/8"]);
         let mut headers = HeaderMap::new();
         headers.insert("x-real-ip", HeaderValue::from_static("1.2.3.4"));
 
@@ -411,11 +356,9 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "cidr")]
     #[test]
     fn cidr_xff_skips_trusted_ranges() {
-        let ext = IpExtractor::new(&["10.0.0.0/8".to_string(), "172.16.0.0/12".to_string()])
-            .unwrap();
+        let ext = extractor(&["10.0.0.0/8", "172.16.0.0/12"]);
         let mut headers = HeaderMap::new();
         headers.insert(
             "x-forwarded-for",
@@ -428,11 +371,9 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "cidr")]
     #[test]
     fn cidr_mixed_exact_and_range() {
-        let ext =
-            IpExtractor::new(&["10.0.0.0/8".to_string(), "192.168.1.1".to_string()]).unwrap();
+        let ext = extractor(&["10.0.0.0/8", "192.168.1.1"]);
         let mut headers = HeaderMap::new();
         headers.insert("x-real-ip", HeaderValue::from_static("5.6.7.8"));
 
@@ -445,6 +386,25 @@ mod tests {
         assert_eq!(
             ext.extract(&headers, peer("10.99.99.99:443")),
             "5.6.7.8".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn bare_ip_auto_promotes_to_host_network() {
+        // A bare IP like "10.0.0.1" should match only that exact IP, not the whole subnet
+        let ext = extractor(&["10.0.0.1"]);
+        let mut headers = HeaderMap::new();
+        headers.insert("x-real-ip", HeaderValue::from_static("1.2.3.4"));
+
+        // Exact match works
+        assert_eq!(
+            ext.extract(&headers, peer("10.0.0.1:443")),
+            "1.2.3.4".parse::<IpAddr>().unwrap()
+        );
+        // Different IP in same /24 does NOT match (not trusted)
+        assert_eq!(
+            ext.extract(&headers, peer("10.0.0.2:443")),
+            "10.0.0.2".parse::<IpAddr>().unwrap()
         );
     }
 }
