@@ -12,7 +12,7 @@
 //! ```rust
 //! use netray_common::ip_extract::IpExtractor;
 //!
-//! let extractor = IpExtractor::new(&["10.0.0.0/8".to_string()]).unwrap();
+//! let extractor = IpExtractor::new(&["10.0.0.0/8".to_string()]);
 //! // extractor.extract(&headers, peer_addr) returns the real client IP
 //! ```
 

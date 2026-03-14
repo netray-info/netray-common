@@ -27,8 +27,8 @@ impl IpExtractor {
     ///
     /// Accepts individual IPs (`10.0.0.1`) and CIDR ranges (`10.0.0.0/8`).
     /// Bare IPs are auto-promoted to /32 (IPv4) or /128 (IPv6).
-    /// Invalid entries are skipped with a warning.
-    pub fn new(trusted_proxy_strs: &[String]) -> Result<Self, String> {
+    /// Invalid entries are skipped with a `tracing::warn!`.
+    pub fn new(trusted_proxy_strs: &[String]) -> Self {
         let mut proxies = Vec::with_capacity(trusted_proxy_strs.len());
 
         for s in trusted_proxy_strs {
@@ -42,9 +42,9 @@ impl IpExtractor {
             }
         }
 
-        Ok(Self {
+        Self {
             trusted_proxies: proxies,
-        })
+        }
     }
 
     /// Returns true if no trusted proxies are configured.
@@ -116,7 +116,7 @@ mod tests {
     }
 
     fn extractor(proxies: &[&str]) -> IpExtractor {
-        IpExtractor::new(&proxies.iter().map(|s| s.to_string()).collect::<Vec<_>>()).unwrap()
+        IpExtractor::new(&proxies.iter().map(|s| s.to_string()).collect::<Vec<_>>())
     }
 
     #[test]
@@ -340,8 +340,7 @@ mod tests {
             "not-an-ip".to_string(),
             "".to_string(),
             "10.0.0.2".to_string(),
-        ])
-        .unwrap();
+        ]);
         assert_eq!(ext.trusted_proxies.len(), 2);
     }
 
