@@ -23,3 +23,7 @@ pub mod ip_filter;
 pub mod middleware;
 pub mod rate_limit;
 pub mod security_headers;
+#[cfg(feature = "telemetry")]
+pub mod telemetry;
+#[cfg(feature = "cors")]
+pub mod cors;

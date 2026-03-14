@@ -13,6 +13,9 @@ rust-version = "1.75"
 [features]
 schema = ["dep:utoipa"]
 middleware = ["dep:uuid"]
+telemetry = ["dep:tracing-subscriber", "dep:tracing-log"]
+otel = ["telemetry", "dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
+cors = ["dep:tower-http"]
 
 [dependencies]
 # HTTP framework (for HeaderMap, StatusCode, IntoResponse)
@@ -38,6 +41,19 @@ serde = { version = "1", features = ["derive"] }
 
 # Logging
 tracing = "0.1"
+
+# Optional: tracing-subscriber (telemetry feature)
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "registry"], optional = true }
+tracing-log = { version = "0.2", optional = true }
+
+# Optional: tower-http (cors feature)
+tower-http = { version = "0.6", features = ["cors"], optional = true }
+
+# Optional: OpenTelemetry (otel feature)
+opentelemetry = { version = "0.28", optional = true }
+opentelemetry_sdk = { version = "0.28", features = ["rt-tokio"], optional = true }
+opentelemetry-otlp = { version = "0.28", features = ["http-proto"], optional = true }
+tracing-opentelemetry = { version = "0.29", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
