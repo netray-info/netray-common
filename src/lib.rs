@@ -29,3 +29,5 @@ pub mod telemetry;
 pub mod cors;
 #[cfg(feature = "server")]
 pub mod server;
+#[cfg(feature = "enrichment")]
+pub mod enrichment;
