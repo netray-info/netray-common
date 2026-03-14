@@ -18,5 +18,8 @@
 
 pub mod error;
 pub mod ip_extract;
+pub mod ip_filter;
+#[cfg(feature = "middleware")]
+pub mod middleware;
 pub mod rate_limit;
 pub mod security_headers;

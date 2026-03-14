@@ -12,6 +12,7 @@ rust-version = "1.75"
 
 [features]
 schema = ["dep:utoipa"]
+middleware = ["dep:uuid"]
 
 [dependencies]
 # HTTP framework (for HeaderMap, StatusCode, IntoResponse)
@@ -19,6 +20,9 @@ axum = { version = "0.8", features = ["json"] }
 
 # Optional: ToSchema derives for ErrorResponse / ErrorInfo
 utoipa = { version = "5", optional = true }
+
+# Optional: UUID v7 for request ID generation (used by middleware feature)
+uuid = { version = "1", features = ["v7"], optional = true }
 
 # Rate limiting
 governor = "0.10"
