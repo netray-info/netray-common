@@ -16,13 +16,16 @@
 //! // extractor.extract(&headers, peer_addr) returns the real client IP
 //! ```
 
+pub mod ecosystem;
 pub mod error;
 pub mod ip_extract;
 pub mod ip_filter;
+pub mod metrics;
 #[cfg(feature = "middleware")]
 pub mod middleware;
 pub mod rate_limit;
 pub mod security_headers;
+pub mod target_policy;
 #[cfg(feature = "telemetry")]
 pub mod telemetry;
 #[cfg(feature = "cors")]

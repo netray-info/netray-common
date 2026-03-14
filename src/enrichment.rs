@@ -48,6 +48,15 @@ pub struct IpInfo {
     pub is_c2: bool,
 }
 
+/// Returns `true` for any IP address that should not be sent to the enrichment
+/// API — private, reserved, or special-purpose ranges including CGNAT
+/// (100.64.0.0/10).
+///
+/// Uses the unified [`crate::target_policy`] blocklist.
+pub fn is_private_ip(ip: IpAddr) -> bool {
+    !crate::target_policy::is_allowed_target(ip)
+}
+
 /// HTTP client for IP enrichment lookups against an ifconfig-rs compatible API.
 ///
 /// Use the `enrichment-cache` feature to enable an in-memory TTL cache
@@ -62,6 +71,11 @@ pub struct EnrichmentClient {
 }
 
 impl EnrichmentClient {
+    /// Returns the base URL of the enrichment API (without trailing slash).
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     /// Create a new enrichment client.
     ///
     /// - `base_url` – ifconfig API base URL (e.g. `https://ip.netray.info`)
@@ -78,6 +92,8 @@ impl EnrichmentClient {
         let client = reqwest::Client::builder()
             .timeout(timeout)
             .user_agent(user_agent)
+            .pool_max_idle_per_host(5)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
             .build()
             .expect("failed to build enrichment HTTP client");
 
@@ -93,12 +109,32 @@ impl EnrichmentClient {
         }
     }
 
+    /// Probe reachability with a HEAD request and a 2-second timeout.
+    ///
+    /// Returns `true` if the service responds with an HTTP status below 500.
+    /// Non-fatal: network errors and timeouts return `false`.
+    pub async fn is_reachable(&self) -> bool {
+        let client = match reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+        {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+        client
+            .head(&self.base_url)
+            .send()
+            .await
+            .map(|r| r.status().as_u16() < 500)
+            .unwrap_or(false)
+    }
+
     /// Look up metadata for a single IP.
     ///
     /// Returns `None` for private/blocked IPs (no request sent) and on any
     /// HTTP or parse error (non-fatal).
     pub async fn lookup(&self, ip: IpAddr) -> Option<IpInfo> {
-        if crate::ip_filter::is_blocked_ip(ip) {
+        if is_private_ip(ip) {
             return None;
         }
 
@@ -199,5 +235,28 @@ mod tests {
         assert!(!crate::ip_filter::is_blocked_ip("8.8.8.8".parse().unwrap()));
         assert!(!crate::ip_filter::is_blocked_ip("1.1.1.1".parse().unwrap()));
         assert!(!crate::ip_filter::is_blocked_ip("2606:4700::1".parse().unwrap()));
+    }
+
+    #[test]
+    fn is_private_ip_blocks_standard_ranges() {
+        assert!(is_private_ip("127.0.0.1".parse().unwrap()));
+        assert!(is_private_ip("10.0.0.1".parse().unwrap()));
+        assert!(is_private_ip("192.168.1.1".parse().unwrap()));
+        assert!(is_private_ip("172.16.0.1".parse().unwrap()));
+        assert!(is_private_ip("::1".parse().unwrap()));
+        assert!(is_private_ip("fc00::1".parse().unwrap()));
+    }
+
+    #[test]
+    fn is_private_ip_blocks_cgnat() {
+        assert!(is_private_ip("100.64.0.1".parse().unwrap()));
+        assert!(is_private_ip("100.127.255.255".parse().unwrap()));
+    }
+
+    #[test]
+    fn is_private_ip_allows_public() {
+        assert!(!is_private_ip("8.8.8.8".parse().unwrap()));
+        assert!(!is_private_ip("1.1.1.1".parse().unwrap()));
+        assert!(!is_private_ip("2606:4700::1".parse().unwrap()));
     }
 }
