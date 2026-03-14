@@ -10,9 +10,15 @@ keywords = ["networking", "security", "middleware", "axum"]
 categories = ["web-programming::http-server"]
 rust-version = "1.75"
 
+[features]
+schema = ["dep:utoipa"]
+
 [dependencies]
 # HTTP framework (for HeaderMap, StatusCode, IntoResponse)
 axum = { version = "0.8", features = ["json"] }
+
+# Optional: ToSchema derives for ErrorResponse / ErrorInfo
+utoipa = { version = "5", optional = true }
 
 # Rate limiting
 governor = "0.10"

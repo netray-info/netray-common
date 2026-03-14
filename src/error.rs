@@ -6,12 +6,14 @@ use serde::Serialize;
 ///
 /// Wire format: `{"error": {"code": "...", "message": "..."}}`
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(utoipa::ToSchema))]
 pub struct ErrorResponse {
     pub error: ErrorInfo,
 }
 
 /// Error detail contained in an error response.
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "schema", derive(utoipa::ToSchema))]
 pub struct ErrorInfo {
     /// Machine-readable error code (e.g. `INVALID_DOMAIN`).
     pub code: &'static str,
