@@ -27,3 +27,5 @@ pub mod security_headers;
 pub mod telemetry;
 #[cfg(feature = "cors")]
 pub mod cors;
+#[cfg(feature = "server")]
+pub mod server;
