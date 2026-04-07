@@ -133,7 +133,7 @@ impl EnrichmentClient {
     ///
     /// Returns `None` for private/blocked IPs (no request sent) and on any
     /// HTTP or parse error (non-fatal).
-    pub async fn lookup(&self, ip: IpAddr) -> Option<IpInfo> {
+    pub async fn lookup(&self, ip: IpAddr, request_id: Option<&str>) -> Option<IpInfo> {
         if is_private_ip(ip) {
             return None;
         }
@@ -151,7 +151,11 @@ impl EnrichmentClient {
         }
 
         let url = format!("{}/network/json?ip={}", self.base_url, ip);
-        let result = match self.client.get(&url).send().await {
+        let mut req = self.client.get(&url);
+        if let Some(rid) = request_id {
+            req = req.header("X-Request-Id", rid);
+        }
+        let result = match req.send().await {
             Ok(resp) if resp.status().is_success() => resp.json::<IpInfo>().await.ok(),
             Ok(resp) => {
                 tracing::debug!(ip = %ip, status = %resp.status(), "enrichment lookup failed");
@@ -173,13 +177,17 @@ impl EnrichmentClient {
     ///
     /// Deduplicates the input and silently skips private/blocked IPs.
     /// Returns only the IPs for which enrichment succeeded.
-    pub async fn lookup_batch(&self, ips: &[IpAddr]) -> HashMap<IpAddr, IpInfo> {
+    pub async fn lookup_batch(&self, ips: &[IpAddr], request_id: Option<&str>) -> HashMap<IpAddr, IpInfo> {
+        let rid = request_id.map(|s| s.to_owned());
         let mut seen = std::collections::HashSet::new();
         let futs: FuturesUnordered<_> = ips
             .iter()
             .copied()
             .filter(|ip| seen.insert(*ip))
-            .map(|ip| async move { (ip, self.lookup(ip).await) })
+            .map(|ip| {
+                let rid = rid.clone();
+                async move { (ip, self.lookup(ip, rid.as_deref()).await) }
+            })
             .collect();
 
         futs.filter_map(|(ip, info)| async move { info.map(|i| (ip, i)) })
