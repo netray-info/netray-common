@@ -131,9 +131,7 @@ mod tests {
         serde_json::from_slice(&bytes).unwrap()
     }
 
-    async fn into_parts(
-        err: TestError,
-    ) -> (StatusCode, axum::http::HeaderMap, serde_json::Value) {
+    async fn into_parts(err: TestError) -> (StatusCode, axum::http::HeaderMap, serde_json::Value) {
         let response = into_error_response(&err);
         let status = response.status();
         let headers = response.headers().clone();
@@ -170,8 +168,7 @@ mod tests {
 
     #[tokio::test]
     async fn rate_limited_includes_retry_after_header() {
-        let (status, headers, _) =
-            into_parts(TestError::RateLimited { retry_after: 42 }).await;
+        let (status, headers, _) = into_parts(TestError::RateLimited { retry_after: 42 }).await;
         assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
         let retry_after = headers
             .get(axum::http::header::RETRY_AFTER)

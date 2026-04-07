@@ -405,7 +405,10 @@ mod tests {
     fn untrusted_peer_ignores_xff() {
         let ext = extractor(&["10.0.0.1"]);
         let mut headers = HeaderMap::new();
-        headers.insert("x-forwarded-for", HeaderValue::from_static("5.6.7.8, 9.10.11.12"));
+        headers.insert(
+            "x-forwarded-for",
+            HeaderValue::from_static("5.6.7.8, 9.10.11.12"),
+        );
         headers.insert("cf-connecting-ip", HeaderValue::from_static("5.6.7.8"));
 
         assert_eq!(

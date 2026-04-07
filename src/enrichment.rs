@@ -177,7 +177,11 @@ impl EnrichmentClient {
     ///
     /// Deduplicates the input and silently skips private/blocked IPs.
     /// Returns only the IPs for which enrichment succeeded.
-    pub async fn lookup_batch(&self, ips: &[IpAddr], request_id: Option<&str>) -> HashMap<IpAddr, IpInfo> {
+    pub async fn lookup_batch(
+        &self,
+        ips: &[IpAddr],
+        request_id: Option<&str>,
+    ) -> HashMap<IpAddr, IpInfo> {
         let rid = request_id.map(|s| s.to_owned());
         let mut seen = std::collections::HashSet::new();
         let futs: FuturesUnordered<_> = ips
@@ -232,7 +236,9 @@ mod tests {
     #[test]
     fn lookup_skips_private_ips() {
         // is_blocked_ip covers all private ranges
-        assert!(crate::ip_filter::is_blocked_ip("127.0.0.1".parse().unwrap()));
+        assert!(crate::ip_filter::is_blocked_ip(
+            "127.0.0.1".parse().unwrap()
+        ));
         assert!(crate::ip_filter::is_blocked_ip("10.0.0.1".parse().unwrap()));
         assert!(crate::ip_filter::is_blocked_ip("::1".parse().unwrap()));
         assert!(crate::ip_filter::is_blocked_ip("fc00::1".parse().unwrap()));
@@ -242,7 +248,9 @@ mod tests {
     fn public_ips_not_blocked() {
         assert!(!crate::ip_filter::is_blocked_ip("8.8.8.8".parse().unwrap()));
         assert!(!crate::ip_filter::is_blocked_ip("1.1.1.1".parse().unwrap()));
-        assert!(!crate::ip_filter::is_blocked_ip("2606:4700::1".parse().unwrap()));
+        assert!(!crate::ip_filter::is_blocked_ip(
+            "2606:4700::1".parse().unwrap()
+        ));
     }
 
     #[test]

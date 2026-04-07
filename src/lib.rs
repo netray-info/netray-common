@@ -16,7 +16,11 @@
 //! // extractor.extract(&headers, peer_addr) returns the real client IP
 //! ```
 
+#[cfg(feature = "cors")]
+pub mod cors;
 pub mod ecosystem;
+#[cfg(feature = "enrichment")]
+pub mod enrichment;
 pub mod error;
 pub mod ip_extract;
 pub mod ip_filter;
@@ -25,12 +29,8 @@ pub mod metrics;
 pub mod middleware;
 pub mod rate_limit;
 pub mod security_headers;
+#[cfg(feature = "server")]
+pub mod server;
 pub mod target_policy;
 #[cfg(feature = "telemetry")]
 pub mod telemetry;
-#[cfg(feature = "cors")]
-pub mod cors;
-#[cfg(feature = "server")]
-pub mod server;
-#[cfg(feature = "enrichment")]
-pub mod enrichment;

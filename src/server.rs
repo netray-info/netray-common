@@ -1,4 +1,4 @@
-/// Shared server utilities: graceful shutdown signal, metrics server, and static file handler.
+//! Shared server utilities: graceful shutdown signal, metrics server, and static file handler.
 
 // ---------------------------------------------------------------------------
 // Graceful shutdown
@@ -88,10 +88,13 @@ mod spa {
     /// - `index.html` and the root path get `Cache-Control: no-cache`.
     /// - Other assets get `Cache-Control: public, max-age=31536000, immutable`.
     /// - Unknown paths fall back to `index.html` for SPA client-side routing.
-    pub fn static_handler<E: rust_embed::RustEmbed>() -> impl Fn(axum::http::Uri) -> std::future::Ready<axum::response::Response> + Clone + Send + Sync + 'static {
-        move |uri: axum::http::Uri| {
-            std::future::ready(handle_static::<E>(uri))
-        }
+    pub fn static_handler<E: rust_embed::RustEmbed>()
+    -> impl Fn(axum::http::Uri) -> std::future::Ready<axum::response::Response>
+    + Clone
+    + Send
+    + Sync
+    + 'static {
+        move |uri: axum::http::Uri| std::future::ready(handle_static::<E>(uri))
     }
 
     fn handle_static<E: rust_embed::RustEmbed>(uri: axum::http::Uri) -> axum::response::Response {
@@ -126,10 +129,7 @@ mod spa {
                         axum::http::header::CONTENT_TYPE,
                         "text/html; charset=utf-8".to_string(),
                     ),
-                    (
-                        axum::http::header::CACHE_CONTROL,
-                        "no-cache".to_string(),
-                    ),
+                    (axum::http::header::CACHE_CONTROL, "no-cache".to_string()),
                 ],
                 index.data.to_vec(),
             )

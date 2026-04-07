@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
-use governor::clock::DefaultClock;
 use governor::RateLimiter;
+use governor::clock::DefaultClock;
 
 /// Keyed rate limiter type alias wrapping governor's `RateLimiter` with
 /// `DefaultKeyedStateStore` and `DefaultClock`.
@@ -54,11 +54,7 @@ pub fn check_keyed_cost<K: std::hash::Hash + Eq + Clone>(
 /// Returns `Ok(())` if the request is within budget, or `Err(RateLimitRejection)`
 /// with scope `"global"`.
 pub fn check_direct_cost(
-    limiter: &RateLimiter<
-        governor::state::NotKeyed,
-        governor::state::InMemoryState,
-        DefaultClock,
-    >,
+    limiter: &RateLimiter<governor::state::NotKeyed, governor::state::InMemoryState, DefaultClock>,
     cost: NonZeroU32,
     metrics_prefix: &'static str,
 ) -> Result<(), RateLimitRejection> {

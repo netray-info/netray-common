@@ -44,9 +44,9 @@ impl Default for SecurityHeadersConfig {
 pub fn security_headers_layer(
     config: SecurityHeadersConfig,
 ) -> impl Fn(Request, Next) -> std::pin::Pin<Box<dyn std::future::Future<Output = Response> + Send>>
-       + Clone
-       + Send
-       + 'static {
++ Clone
++ Send
++ 'static {
     let valid_extra: Vec<String> = config
         .extra_script_src
         .into_iter()
@@ -139,11 +139,11 @@ pub fn security_headers_layer(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::Router;
     use axum::body::Body;
     use axum::http::{Request as HttpRequest, StatusCode};
     use axum::middleware;
     use axum::routing::get;
-    use axum::Router;
     use tower::ServiceExt;
 
     async fn ok_handler() -> &'static str {

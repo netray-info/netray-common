@@ -211,7 +211,9 @@ mod tests {
     #[test]
     fn blocks_documentation_ipv6() {
         assert!(is_blocked_ip("2001:db8::1".parse().unwrap()));
-        assert!(is_blocked_ip("2001:db8:ffff:ffff:ffff:ffff:ffff:ffff".parse().unwrap()));
+        assert!(is_blocked_ip(
+            "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff".parse().unwrap()
+        ));
     }
 
     // ---- ULA ----
@@ -220,7 +222,9 @@ mod tests {
     fn blocks_ipv6_ula() {
         assert!(is_blocked_ip("fc00::1".parse().unwrap()));
         assert!(is_blocked_ip("fd00::1".parse().unwrap()));
-        assert!(is_blocked_ip("fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff".parse().unwrap()));
+        assert!(is_blocked_ip(
+            "fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff".parse().unwrap()
+        ));
     }
 
     // ---- IPv4-mapped IPv6 ----
