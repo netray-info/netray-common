@@ -59,6 +59,16 @@ pub fn into_error_response(err: &impl ApiError) -> Response {
         tracing::warn!(error = %err, "client error");
     }
 
+    build_error_response(err)
+}
+
+/// Build an error response without logging (caller handles logging).
+///
+/// Use this when the caller already logs with tool-specific context.
+/// Use [`into_error_response`] for the default behaviour (logs + response).
+pub fn build_error_response(err: &impl ApiError) -> Response {
+    let status = err.status_code();
+
     let body = ErrorResponse {
         error: ErrorInfo {
             code: err.error_code(),
