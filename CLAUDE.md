@@ -57,6 +57,7 @@ netray-common/
     error.rs                 # structured JSON error responses (ApiError trait)
     rate_limit.rs            # keyed + global rate limiting (governor wrappers)
     security_headers.rs      # axum middleware for CSP, HSTS, X-Frame-Options, etc.
+    telemetry.rs             # tracing-subscriber init + optional OTel OTLP export
 ```
 
 ### Modules
@@ -67,6 +68,7 @@ netray-common/
 | `error` | `ApiError` trait + `into_error_response()` produces `{"error": {"code": "...", "message": "..."}}` JSON. Adds `Retry-After` header for rate-limited responses. |
 | `rate_limit` | `check_keyed_cost` and `check_direct_cost` wrap governor's GCRA limiter. Emit `{prefix}_rate_limit_hits_total` metrics on rejection. |
 | `security_headers` | `security_headers_layer()` returns an axum middleware closure. Sets CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy. Supports relaxed CSP for docs paths. |
+| `telemetry` | `init_subscriber()` sets up tracing-subscriber with env filter + optional OTel OTLP layer. `TelemetryConfig` (log_format, enabled, otlp_endpoint, service_name, sample_rate). `shutdown()` flushes spans. All tools must use this -- see [`specs/logging-rules.md`](../specs/logging-rules.md). |
 
 ## Key Dependencies
 
