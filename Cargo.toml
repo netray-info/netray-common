@@ -55,10 +55,10 @@ tracing-log = { version = "0.2", optional = true }
 tower-http = { version = "0.6", features = ["cors"], optional = true }
 
 # Optional: OpenTelemetry (otel feature)
-opentelemetry = { version = "0.28", optional = true }
-opentelemetry_sdk = { version = "0.28", features = ["rt-tokio"], optional = true }
-opentelemetry-otlp = { version = "0.28", features = ["http-proto"], optional = true }
-tracing-opentelemetry = { version = "0.29", optional = true }
+opentelemetry = { version = "0.31", optional = true }
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"], optional = true }
+opentelemetry-otlp = { version = "0.31", features = ["http-proto"], optional = true }
+tracing-opentelemetry = { version = "0.32", optional = true }
 
 # Optional: tokio (server feature)
 tokio = { version = "1", features = ["signal", "net", "sync"], optional = true }
@@ -71,7 +71,7 @@ rust-embed = { version = "8", optional = true }
 mime_guess = { version = "2", optional = true }
 
 # Optional: IP enrichment client (enrichment / enrichment-cache features)
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "webpki-roots"], optional = true }
 futures = { version = "0.3", optional = true }
 moka = { version = "0.12", features = ["future"], optional = true }
 
