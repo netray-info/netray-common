@@ -156,13 +156,16 @@ impl EnrichmentClient {
             req = req.header("X-Request-Id", rid);
         }
         let result = match req.send().await {
-            Ok(resp) if resp.status().is_success() => resp.json::<IpInfo>().await.ok(),
+            Ok(resp) if resp.status().is_success() => {
+                tracing::debug!(ip = %ip, service = "ifconfig", url = %url, "enrichment lookup succeeded");
+                resp.json::<IpInfo>().await.ok()
+            }
             Ok(resp) => {
-                tracing::debug!(ip = %ip, status = %resp.status(), "enrichment lookup failed");
+                tracing::warn!(ip = %ip, service = "ifconfig", url = %url, status = %resp.status(), "enrichment lookup failed");
                 None
             }
             Err(e) => {
-                tracing::debug!(ip = %ip, error = %e, "enrichment lookup error");
+                tracing::warn!(ip = %ip, service = "ifconfig", url = %url, error = %e, "enrichment lookup error");
                 None
             }
         };

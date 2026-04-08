@@ -106,6 +106,37 @@ pub fn init_subscriber(config: &TelemetryConfig, default_filter: &str) {
             .with(env_filter)
             .init();
     }
+
+    let log_format = match config.log_format {
+        LogFormat::Text => "text",
+        LogFormat::Json => "json",
+    };
+
+    if config.enabled && !config.service_name.is_empty() {
+        tracing::info!(
+            log_format,
+            otel_enabled = true,
+            otel_endpoint = %config.otlp_endpoint,
+            service_name = %config.service_name,
+            "telemetry initialized"
+        );
+    } else if config.enabled {
+        tracing::info!(
+            log_format,
+            otel_enabled = true,
+            otel_endpoint = %config.otlp_endpoint,
+            "telemetry initialized"
+        );
+    } else if !config.service_name.is_empty() {
+        tracing::info!(
+            log_format,
+            otel_enabled = false,
+            service_name = %config.service_name,
+            "telemetry initialized"
+        );
+    } else {
+        tracing::info!(log_format, otel_enabled = false, "telemetry initialized");
+    }
 }
 
 /// Build the OpenTelemetry tracing layer.

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.3 (2026-04-08)
+
+### Changed
+
+- Add telemetry self-announcement INFO log after subscriber initialization (telemetry.rs)
+- Elevate EnrichmentClient failure logs from DEBUG to WARN with service/url fields (enrichment.rs)
+
 ## 0.5.2 (2026-04-08)
 
 ### Changed
