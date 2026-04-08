@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.2 (2026-04-08)
+
+### Changed
+
+- CI: allow CDLA-Permissive-2.0 license for webpki-roots (26ddbcf)
+- CI: fix deprecated deny.toml keys for cargo-deny-action@v2 (04e013e)
+- CI: fix --locked failures for library crate without committed Cargo.lock (cda16cd)
+- CI: align workflows with netray.info workflow-rules spec (639ccf9)
+
 ## 0.5.1 (2026-04-08)
 
 - Bump reqwest 0.12→0.13, opentelemetry 0.28→0.31, tracing-opentelemetry 0.29→0.32.
