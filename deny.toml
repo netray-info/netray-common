@@ -10,15 +10,11 @@ allow = [
     "Unicode-3.0",
     "Zlib",
 ]
-copyleft = "warn"
-unlicensed = "deny"
 
 [bans]
 multiple-versions = "warn"
-wildcards = "warn"
 
 [advisories]
-version = 2
 ignore = []
 
 [sources]
