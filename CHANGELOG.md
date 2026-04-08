@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.4 (2026-04-09)
+
+### Added
+
+- Add build_error_response() for logging-free error responses (848c79c)
+
 ## 0.5.3 (2026-04-08)
 
 ### Changed
