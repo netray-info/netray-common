@@ -31,6 +31,12 @@
 - **Author**: Lukas Pustina | **License**: MIT
 - **MSRV**: 1.75
 
+## CI/CD
+
+Workflow rules: [`specs/workflow-rules.md`](../specs/workflow-rules.md) in the netray.info meta repo. Follow those rules when creating or modifying any `.github/workflows/*.yml` file.
+
+Workflows: `ci.yml` (PR gate: fmt, clippy, test, audit). No release automation — publish to crates.io is a manual `cargo publish`.
+
 ## Build & Test
 
 ```sh
