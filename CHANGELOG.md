@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.1 (2026-04-08)
+
+- Bump reqwest 0.12→0.13, opentelemetry 0.28→0.31, tracing-opentelemetry 0.29→0.32.
+
+## 0.5.0 (2026-04-07)
+
+- Add request_id propagation to EnrichmentClient via `X-Request-Id` header.
+- Add Makefile for local testing and publishing.
+- Fix clippy and rustfmt violations.
+
 ## 0.2.1 (2026-03-11)
 
 - Pre-parse static security header values at construction time.
