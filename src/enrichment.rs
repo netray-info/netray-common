@@ -46,6 +46,9 @@ pub struct IpInfo {
     pub is_spamhaus: bool,
     #[serde(default)]
     pub is_c2: bool,
+    /// ASN network role from ipverse/as-metadata (e.g. "Midsize Transit", "Access Provider").
+    #[serde(default)]
+    pub network_role: Option<String>,
 }
 
 /// Returns `true` for any IP address that should not be sent to the enrichment
