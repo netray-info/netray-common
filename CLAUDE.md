@@ -33,7 +33,7 @@
 
 ## CI/CD
 
-Workflow rules: [`specs/workflow-rules.md`](../specs/workflow-rules.md) in the netray.info meta repo. Follow those rules when creating or modifying any `.github/workflows/*.yml` file.
+Workflow rules: [`specs/rules/workflow-rules.md`](../specs/rules/workflow-rules.md) in the netray.info meta repo. Follow those rules when creating or modifying any `.github/workflows/*.yml` file.
 
 Workflows: `ci.yml` (PR gate: fmt, clippy, test, audit). No release automation — publish to crates.io is a manual `cargo publish`.
 
@@ -68,7 +68,7 @@ netray-common/
 | `error` | `ApiError` trait + `into_error_response()` produces `{"error": {"code": "...", "message": "..."}}` JSON. Adds `Retry-After` header for rate-limited responses. |
 | `rate_limit` | `check_keyed_cost` and `check_direct_cost` wrap governor's GCRA limiter. Emit `{prefix}_rate_limit_hits_total` metrics on rejection. |
 | `security_headers` | `security_headers_layer()` returns an axum middleware closure. Sets CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy. Supports relaxed CSP for docs paths. |
-| `telemetry` | `init_subscriber()` sets up tracing-subscriber with env filter + optional OTel OTLP layer. `TelemetryConfig` (log_format, enabled, otlp_endpoint, service_name, sample_rate). `shutdown()` flushes spans. All tools must use this -- see [`specs/logging-rules.md`](../specs/logging-rules.md). |
+| `telemetry` | `init_subscriber()` sets up tracing-subscriber with env filter + optional OTel OTLP layer. `TelemetryConfig` (log_format, enabled, otlp_endpoint, service_name, sample_rate). `shutdown()` flushes spans. All tools must use this -- see [`specs/rules/logging-rules.md`](../specs/rules/logging-rules.md). |
 
 ## Key Dependencies
 
