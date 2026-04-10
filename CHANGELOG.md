@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.0 (2026-04-10)
+
+### Added
+
+- Add network_role to IP enrichment (fa5f207)
+
 ## 0.5.4 (2026-04-09)
 
 ### Added
