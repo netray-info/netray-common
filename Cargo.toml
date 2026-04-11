@@ -19,8 +19,9 @@ cors = ["dep:tower-http"]
 server = ["dep:tokio"]
 prometheus = ["server", "dep:metrics-exporter-prometheus"]
 spa = ["server", "dep:rust-embed", "dep:mime_guess"]
-enrichment = ["dep:reqwest", "dep:futures"]
+enrichment = ["dep:reqwest", "dep:futures", "dep:serde_json"]
 enrichment-cache = ["enrichment", "dep:moka"]
+backend = ["dep:reqwest", "dep:moka", "dep:tokio", "dep:bytes", "dep:thiserror"]
 
 [dependencies]
 # HTTP framework (for HeaderMap, StatusCode, IntoResponse)
@@ -74,8 +75,14 @@ mime_guess = { version = "2", optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "webpki-roots"], optional = true }
 futures = { version = "0.3", optional = true }
 moka = { version = "0.12", features = ["future"], optional = true }
+serde_json = { version = "1", optional = true }
+
+# Optional: backend client (backend feature)
+bytes = { version = "1", optional = true }
+thiserror = { version = "2", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
 tower = { version = "0.5", features = ["util"] }
 serde_json = "1"
+futures = "0.3"

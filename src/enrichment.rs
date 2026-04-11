@@ -1,8 +1,9 @@
 //! IP enrichment client for the netray.info service ecosystem.
 //!
 //! Provides a shared client for fetching ASN, cloud provider, and threat-flag
-//! metadata from an ifconfig-rs compatible API. Gates the `moka` TTL cache
-//! behind the `enrichment-cache` feature flag.
+//! metadata from an ifconfig-rs compatible API. When the `backend` feature is
+//! enabled, delegates HTTP transport, concurrency limiting, caching, and metrics
+//! to [`crate::backend::BackendClient`].
 
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -62,14 +63,19 @@ pub fn is_private_ip(ip: IpAddr) -> bool {
 
 /// HTTP client for IP enrichment lookups against an ifconfig-rs compatible API.
 ///
-/// Use the `enrichment-cache` feature to enable an in-memory TTL cache
-/// (1024 entries, 300 s TTL) that avoids redundant lookups within a request
-/// fan-out.
+/// When built with the `backend` feature, delegates transport to
+/// [`crate::backend::BackendClient`] for semaphore-based concurrency limiting,
+/// caching, and metrics. Otherwise uses a standalone `reqwest::Client` with
+/// optional `moka` cache (behind `enrichment-cache`).
 pub struct EnrichmentClient {
+    #[cfg(feature = "backend")]
+    backend: crate::backend::BackendClient,
+    #[cfg(not(feature = "backend"))]
     client: reqwest::Client,
     base_url: String,
+    #[cfg(not(feature = "backend"))]
     metrics_label: Option<&'static str>,
-    #[cfg(feature = "enrichment-cache")]
+    #[cfg(all(feature = "enrichment-cache", not(feature = "backend")))]
     cache: moka::future::Cache<IpAddr, Option<IpInfo>>,
 }
 
@@ -81,10 +87,10 @@ impl EnrichmentClient {
 
     /// Create a new enrichment client.
     ///
-    /// - `base_url` – ifconfig API base URL (e.g. `https://ip.netray.info`)
-    /// - `timeout` – per-request HTTP timeout
-    /// - `user_agent` – `User-Agent` header value sent to the enrichment API
-    /// - `metrics_label` – when `Some`, emit Prometheus counters tagged with
+    /// - `base_url` -- ifconfig API base URL (e.g. `https://ip.netray.info`)
+    /// - `timeout` -- per-request HTTP timeout
+    /// - `user_agent` -- `User-Agent` header value sent to the enrichment API
+    /// - `metrics_label` -- when `Some`, emit Prometheus counters tagged with
     ///   `service = <label>`. Pass `None` to skip metrics.
     pub fn new(
         base_url: &str,
@@ -92,23 +98,54 @@ impl EnrichmentClient {
         user_agent: &'static str,
         metrics_label: Option<&'static str>,
     ) -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(timeout)
-            .user_agent(user_agent)
-            .pool_max_idle_per_host(5)
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
-            .build()
-            .expect("failed to build enrichment HTTP client");
+        let trimmed = base_url.trim_end_matches('/').to_owned();
 
-        Self {
-            client,
-            base_url: base_url.trim_end_matches('/').to_owned(),
-            metrics_label,
-            #[cfg(feature = "enrichment-cache")]
-            cache: moka::future::Cache::builder()
-                .max_capacity(1024)
-                .time_to_live(Duration::from_secs(300))
-                .build(),
+        #[cfg(feature = "backend")]
+        {
+            let config = crate::backend::BackendConfig {
+                url: Some(trimmed.clone()),
+                timeout_ms: timeout.as_millis() as u64,
+                max_concurrent: 20,
+                cache_ttl_secs: if cfg!(feature = "enrichment-cache") {
+                    300
+                } else {
+                    0
+                },
+                cache_capacity: 1024,
+            };
+            let backend = crate::backend::BackendClient::new(
+                &config,
+                "ifconfig",
+                metrics_label.unwrap_or(""),
+            )
+            .expect("BackendClient::new returned None with Some(url)");
+            let _ = user_agent; // user_agent is baked into BackendClient's reqwest::Client
+            Self {
+                backend,
+                base_url: trimmed,
+            }
+        }
+
+        #[cfg(not(feature = "backend"))]
+        {
+            let client = reqwest::Client::builder()
+                .timeout(timeout)
+                .user_agent(user_agent)
+                .pool_max_idle_per_host(5)
+                .pool_idle_timeout(std::time::Duration::from_secs(90))
+                .build()
+                .expect("failed to build enrichment HTTP client");
+
+            Self {
+                client,
+                base_url: trimmed,
+                metrics_label,
+                #[cfg(feature = "enrichment-cache")]
+                cache: moka::future::Cache::builder()
+                    .max_capacity(1024)
+                    .time_to_live(Duration::from_secs(300))
+                    .build(),
+            }
         }
     }
 
@@ -117,19 +154,31 @@ impl EnrichmentClient {
     /// Returns `true` if the service responds with an HTTP status below 500.
     /// Non-fatal: network errors and timeouts return `false`.
     pub async fn is_reachable(&self) -> bool {
-        let client = match reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()
+        #[cfg(feature = "backend")]
         {
-            Ok(c) => c,
-            Err(_) => return false,
-        };
-        client
-            .head(&self.base_url)
-            .send()
-            .await
-            .map(|r| r.status().as_u16() < 500)
-            .unwrap_or(false)
+            self.backend
+                .head("/")
+                .await
+                .map(|s| s.as_u16() < 500)
+                .unwrap_or(false)
+        }
+
+        #[cfg(not(feature = "backend"))]
+        {
+            let client = match reqwest::Client::builder()
+                .timeout(Duration::from_secs(2))
+                .build()
+            {
+                Ok(c) => c,
+                Err(_) => return false,
+            };
+            client
+                .head(&self.base_url)
+                .send()
+                .await
+                .map(|r| r.status().as_u16() < 500)
+                .unwrap_or(false)
+        }
     }
 
     /// Look up metadata for a single IP.
@@ -141,42 +190,60 @@ impl EnrichmentClient {
             return None;
         }
 
-        #[cfg(feature = "enrichment-cache")]
-        if let Some(cached) = self.cache.get(&ip).await {
+        #[cfg(feature = "backend")]
+        {
+            let path = format!("/network/json?ip={}", ip);
+            match self.backend.get(&path, request_id).await {
+                Ok((_status, body)) => {
+                    tracing::debug!(ip = %ip, service = "ifconfig", "enrichment lookup succeeded");
+                    serde_json::from_slice::<IpInfo>(&body).ok()
+                }
+                Err(e) => {
+                    tracing::warn!(ip = %ip, service = "ifconfig", error = %e, "enrichment lookup error");
+                    None
+                }
+            }
+        }
+
+        #[cfg(not(feature = "backend"))]
+        {
+            #[cfg(feature = "enrichment-cache")]
+            if let Some(cached) = self.cache.get(&ip).await {
+                if let Some(svc) = self.metrics_label {
+                    metrics::counter!("enrichment_cache_hits_total", "service" => svc).increment(1);
+                }
+                return cached;
+            }
+
             if let Some(svc) = self.metrics_label {
-                metrics::counter!("enrichment_cache_hits_total", "service" => svc).increment(1);
+                metrics::counter!("enrichment_requests_total", "service" => svc).increment(1);
             }
-            return cached;
+
+            let url = format!("{}/network/json?ip={}", self.base_url, ip);
+            let mut req = self.client.get(&url);
+            if let Some(rid) = request_id {
+                req = req.header("X-Request-Id", rid);
+            }
+            let result = match req.send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    tracing::debug!(ip = %ip, service = "ifconfig", url = %url, "enrichment lookup succeeded");
+                    resp.json::<IpInfo>().await.ok()
+                }
+                Ok(resp) => {
+                    tracing::warn!(ip = %ip, service = "ifconfig", url = %url, status = %resp.status(), "enrichment lookup failed");
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!(ip = %ip, service = "ifconfig", url = %url, error = %e, "enrichment lookup error");
+                    None
+                }
+            };
+
+            #[cfg(feature = "enrichment-cache")]
+            self.cache.insert(ip, result.clone()).await;
+
+            result
         }
-
-        if let Some(svc) = self.metrics_label {
-            metrics::counter!("enrichment_requests_total", "service" => svc).increment(1);
-        }
-
-        let url = format!("{}/network/json?ip={}", self.base_url, ip);
-        let mut req = self.client.get(&url);
-        if let Some(rid) = request_id {
-            req = req.header("X-Request-Id", rid);
-        }
-        let result = match req.send().await {
-            Ok(resp) if resp.status().is_success() => {
-                tracing::debug!(ip = %ip, service = "ifconfig", url = %url, "enrichment lookup succeeded");
-                resp.json::<IpInfo>().await.ok()
-            }
-            Ok(resp) => {
-                tracing::warn!(ip = %ip, service = "ifconfig", url = %url, status = %resp.status(), "enrichment lookup failed");
-                None
-            }
-            Err(e) => {
-                tracing::warn!(ip = %ip, service = "ifconfig", url = %url, error = %e, "enrichment lookup error");
-                None
-            }
-        };
-
-        #[cfg(feature = "enrichment-cache")]
-        self.cache.insert(ip, result.clone()).await;
-
-        result
     }
 
     /// Look up metadata for multiple IPs concurrently.
@@ -280,5 +347,62 @@ mod tests {
         assert!(!is_private_ip("8.8.8.8".parse().unwrap()));
         assert!(!is_private_ip("1.1.1.1".parse().unwrap()));
         assert!(!is_private_ip("2606:4700::1".parse().unwrap()));
+    }
+
+    // T5: EnrichmentClient calls /network/json with X-Request-Id (backend feature)
+    #[cfg(feature = "backend")]
+    #[tokio::test]
+    async fn lookup_calls_network_json_with_request_id() {
+        use std::sync::Arc;
+
+        let received = Arc::new(tokio::sync::Mutex::new((String::new(), String::new())));
+        let recv = received.clone();
+
+        let app = axum::Router::new().route(
+            "/network/json",
+            axum::routing::get(move |
+                headers: axum::http::HeaderMap,
+                axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
+            | {
+                let recv = recv.clone();
+                async move {
+                    let ip = params.get("ip").cloned().unwrap_or_default();
+                    let rid = headers
+                        .get("x-request-id")
+                        .map(|v| v.to_str().unwrap().to_owned())
+                        .unwrap_or_default();
+                    *recv.lock().await = (ip, rid);
+                    axum::Json(serde_json::json!({
+                        "asn": 15169,
+                        "org": "Google LLC",
+                        "type": "cloud"
+                    }))
+                }
+            }),
+        );
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.ok(); });
+
+        let client = EnrichmentClient::new(
+            &format!("http://{addr}"),
+            Duration::from_secs(5),
+            "test",
+            None,
+        );
+
+        let result = client
+            .lookup("8.8.8.8".parse().unwrap(), Some("req-abc-123"))
+            .await;
+        assert!(result.is_some(), "lookup should return Some for valid IP");
+
+        let info = result.unwrap();
+        assert_eq!(info.asn, Some(15169));
+        assert_eq!(info.org.as_deref(), Some("Google LLC"));
+
+        let (captured_ip, captured_rid) = &*received.lock().await;
+        assert_eq!(captured_ip, "8.8.8.8", "should query for the requested IP");
+        assert_eq!(captured_rid, "req-abc-123", "should propagate X-Request-Id");
     }
 }
