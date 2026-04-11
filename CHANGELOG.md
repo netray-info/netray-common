@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.7.0 (2026-04-11)
+
+### Added
+
+- Add BackendClient and expand EcosystemConfig to 6 fields (b04e751)
+
 ## 0.6.0 (2026-04-10)
 
 ### Added
