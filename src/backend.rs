@@ -82,7 +82,11 @@ pub struct BackendClient {
 
 impl BackendClient {
     /// Construct from config. Returns `None` if `config.url` is `None` (backend disabled).
-    pub fn new(config: &BackendConfig, service: &'static str, caller: &'static str) -> Option<Self> {
+    pub fn new(
+        config: &BackendConfig,
+        service: &'static str,
+        caller: &'static str,
+    ) -> Option<Self> {
         let base_url = config.url.as_ref()?;
         let timeout_ms = config.timeout_ms.min(25_000);
         let timeout = Duration::from_millis(timeout_ms);
@@ -140,8 +144,7 @@ impl BackendClient {
                 )
                 .increment(1);
                 return Ok((
-                    reqwest::StatusCode::from_u16(cached.status)
-                        .unwrap_or(reqwest::StatusCode::OK),
+                    reqwest::StatusCode::from_u16(cached.status).unwrap_or(reqwest::StatusCode::OK),
                     cached.body,
                 ));
             }
@@ -279,9 +282,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// Start a mock HTTP server on a random port, returning its base URL.
-    async fn mock_server(
-        router: axum::Router,
-    ) -> (String, tokio::task::JoinHandle<()>) {
+    async fn mock_server(router: axum::Router) -> (String, tokio::task::JoinHandle<()>) {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let handle = tokio::spawn(async move {
@@ -513,10 +514,7 @@ mod tests {
     // HEAD bypasses semaphore
     #[tokio::test]
     async fn head_bypasses_semaphore() {
-        let app = axum::Router::new().route(
-            "/health",
-            axum::routing::head(|| async { "" }),
-        );
+        let app = axum::Router::new().route("/health", axum::routing::head(|| async { "" }));
 
         let (url, _handle) = mock_server(app).await;
         // max_concurrent = 0 means no permits available for get()

@@ -360,30 +360,34 @@ mod tests {
 
         let app = axum::Router::new().route(
             "/network/json",
-            axum::routing::get(move |
-                headers: axum::http::HeaderMap,
-                axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
-            | {
-                let recv = recv.clone();
-                async move {
-                    let ip = params.get("ip").cloned().unwrap_or_default();
-                    let rid = headers
-                        .get("x-request-id")
-                        .map(|v| v.to_str().unwrap().to_owned())
-                        .unwrap_or_default();
-                    *recv.lock().await = (ip, rid);
-                    axum::Json(serde_json::json!({
-                        "asn": 15169,
-                        "org": "Google LLC",
-                        "type": "cloud"
-                    }))
-                }
-            }),
+            axum::routing::get(
+                move |headers: axum::http::HeaderMap,
+                      axum::extract::Query(params): axum::extract::Query<
+                    HashMap<String, String>,
+                >| {
+                    let recv = recv.clone();
+                    async move {
+                        let ip = params.get("ip").cloned().unwrap_or_default();
+                        let rid = headers
+                            .get("x-request-id")
+                            .map(|v| v.to_str().unwrap().to_owned())
+                            .unwrap_or_default();
+                        *recv.lock().await = (ip, rid);
+                        axum::Json(serde_json::json!({
+                            "asn": 15169,
+                            "org": "Google LLC",
+                            "type": "cloud"
+                        }))
+                    }
+                },
+            ),
         );
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        tokio::spawn(async move { axum::serve(listener, app).await.ok(); });
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.ok();
+        });
 
         let client = EnrichmentClient::new(
             &format!("http://{addr}"),
