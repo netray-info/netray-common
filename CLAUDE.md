@@ -1,26 +1,11 @@
 # CLAUDE.md -- netray-common
 
-## Rules
-
-- No Co-Authored-By for Claude in commits
-- Scoped changes only: no formatting mixed with functional changes, no unrelated modifications
-- No heavy deps for minor convenience; no speculative flags/config/abstractions without a caller
-- Don't bypass failing checks (`--no-verify`, `#[allow(...)]`) without explaining why
-- No PII, real emails, or real domains (use example.com) in test data, docs, commits
-- `TODO("reason")` over hidden guesses; conventional commits (`feat:`, `fix:`, `refactor:`, etc.)
-
-## Engineering Principles
-
-KISS · YAGNI · DRY (rule of three) · SRP · Fail Fast · Secure by Default · Reversibility · Performance
-
-- **Rust patterns**: Use idiomatic Rust (enums, traits, iterators). Leverage the type system to prevent invalid states.
-
 ## Project Overview
 
 **netray-common** is a shared utility crate for the [netray.info](https://netray.info) service ecosystem. It provides cross-cutting concerns (IP extraction, error formatting, rate limiting, security headers) used by multiple backend services.
 
 - **Author**: Lukas Pustina | **License**: MIT
-- **MSRV**: 1.75
+- **MSRV**: 1.85 (edition 2024)
 
 ## CI/CD
 
