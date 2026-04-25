@@ -257,7 +257,7 @@ impl BackendClient {
         let resp = reqwest::Client::builder()
             .timeout(Duration::from_secs(2))
             .build()
-            .map_err(|e| BackendError::Network(e))?
+            .map_err(BackendError::Network)?
             .head(&url)
             .send()
             .await
