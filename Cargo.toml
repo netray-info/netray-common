@@ -1,6 +1,6 @@
 [package]
 name = "netray-common"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
 license = "MIT"
 description = "Shared utilities for the netray.info service ecosystem"
@@ -19,7 +19,7 @@ cors = ["dep:tower-http"]
 server = ["dep:tokio"]
 prometheus = ["server", "dep:metrics-exporter-prometheus"]
 spa = ["server", "dep:rust-embed", "dep:mime_guess"]
-enrichment = ["dep:reqwest", "dep:futures", "dep:serde_json"]
+enrichment = ["dep:reqwest", "dep:futures"]
 enrichment-cache = ["enrichment", "dep:moka"]
 backend = ["dep:reqwest", "dep:moka", "dep:tokio", "dep:bytes", "dep:thiserror"]
 
@@ -71,11 +71,13 @@ metrics-exporter-prometheus = { version = "0.18", optional = true }
 rust-embed = { version = "8", optional = true }
 mime_guess = { version = "2", optional = true }
 
+# JSON value type for EcosystemMeta features/limits maps
+serde_json = "1"
+
 # Optional: IP enrichment client (enrichment / enrichment-cache features)
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "webpki-roots"], optional = true }
 futures = { version = "0.3", optional = true }
 moka = { version = "0.12", features = ["future"], optional = true }
-serde_json = { version = "1", optional = true }
 
 # Optional: backend client (backend feature)
 bytes = { version = "1", optional = true }
@@ -84,5 +86,4 @@ thiserror = { version = "2", optional = true }
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
 tower = { version = "0.5", features = ["util"] }
-serde_json = "1"
 futures = "0.3"
