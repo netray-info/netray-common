@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.8.1 (2026-05-01)
+
+### Changed
+
+- Add CONTRIBUTING.md and DCO sign-off CI (6a913db)
+- Drop monitoring-service example from licensing section (a69877d)
+
 ## 0.7.0 (2026-04-11)
 
 ### Added
