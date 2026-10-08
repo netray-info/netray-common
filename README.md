@@ -1,3 +1,5 @@
+> **Archived.** This repository moved into the netray monorepo, [`netray-info/netray`](https://github.com/netray-info/netray/tree/main/crates/common). Development, issues and releases happen there. This repository publishes nothing further to crates.io (`netray-common`); images and versions already published stay available.
+
 # netray-common
 
 Shared utilities for the [netray.info](https://netray.info) service ecosystem.
